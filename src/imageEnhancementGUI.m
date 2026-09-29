@@ -9,10 +9,16 @@ function imageEnhancementGUI()
     FG_TEXT  = [0.90 0.90 0.92];
     GRID_COL = [0.55 0.55 0.58];
 
-    inputImg = [];
+    originalImg = [];
+    activeImg = [];
+    lastResult = [];
     refImg   = [];
     isColor  = false;
     activeLabels = {};
+    sourceFile = '';
+    lastMethod = '';
+    lastParameters = '';
+    methodHistory = struct('method', {}, 'parameters', {});
 
     fig = figure('Name', 'IF4073 - Image Enhancement GUI', ...
         'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', ...
@@ -23,6 +29,21 @@ function imageEnhancementGUI()
         'Units', 'normalized', 'Position', [0.01 0.945 0.10 0.045], ...
         'BackgroundColor', BG_CTRL, 'ForegroundColor', FG_TEXT, ...
         'Callback', @loadImageCallback);
+
+    uicontrol(fig, 'Style', 'pushbutton', 'String', 'Use Last Result', ...
+        'Units', 'normalized', 'Position', [0.54 0.945 0.13 0.045], ...
+        'BackgroundColor', BG_CTRL, 'ForegroundColor', FG_TEXT, ...
+        'Callback', @useLastResultCallback);
+
+    uicontrol(fig, 'Style', 'pushbutton', 'String', 'Save Result', ...
+        'Units', 'normalized', 'Position', [0.68 0.945 0.10 0.045], ...
+        'BackgroundColor', BG_CTRL, 'ForegroundColor', FG_TEXT, ...
+        'Callback', @saveResultCallback);
+
+    uicontrol(fig, 'Style', 'pushbutton', 'String', 'Export Case', ...
+        'Units', 'normalized', 'Position', [0.79 0.945 0.12 0.045], ...
+        'BackgroundColor', BG_CTRL, 'ForegroundColor', FG_TEXT, ...
+        'Callback', @exportCaseCallback);
 
     fileNameText = uicontrol(fig, 'Style', 'text', 'String', 'Belum ada citra dimuat', ...
         'Units', 'normalized', 'Position', [0.12 0.945 0.40 0.04], ...
@@ -35,7 +56,8 @@ function imageEnhancementGUI()
     tab3 = uitab(tg, 'Title', '3. Histogram Equalization');
     tab4 = uitab(tg, 'Title', '4. Histogram Specification');
     tab5 = uitab(tg, 'Title', '5. Penapisan');
-    for t = [tab1, tab2, tab3, tab4, tab5]
+    tab6 = uitab(tg, 'Title', '6. Analisis & Ekspor');
+    for t = [tab1, tab2, tab3, tab4, tab5, tab6]
         try, t.BackgroundColor = BG_PANEL; catch, end
     end
 
@@ -150,13 +172,31 @@ function imageEnhancementGUI()
     histPanel5 = mkPanel(tab5, [colX(2) 0.05 colW 0.46], BG_PANEL, FG_TEXT);
     featText5  = mkTextBox(tab5, [colX(3) 0.05 colW 0.46], BG_CTRL, FG_TEXT);
 
+    mkLabel(tab6, 'Identifikasi Masalah Visual', [0.02 0.88 0.45 0.04], true, BG_PANEL, FG_TEXT);
+    problemText = mkMultilineEdit(tab6, [0.02 0.65 0.45 0.22], BG_CTRL, FG_TEXT);
+    mkLabel(tab6, 'Tujuan Perbaikan', [0.53 0.88 0.45 0.04], true, BG_PANEL, FG_TEXT);
+    objectiveText = mkMultilineEdit(tab6, [0.53 0.65 0.45 0.22], BG_CTRL, FG_TEXT);
+    mkLabel(tab6, 'Alasan Metode dan Parameter', [0.02 0.57 0.45 0.04], true, BG_PANEL, FG_TEXT);
+    rationaleText = mkMultilineEdit(tab6, [0.02 0.34 0.45 0.22], BG_CTRL, FG_TEXT);
+    mkLabel(tab6, 'Penilaian Hasil dan Artefak', [0.53 0.57 0.45 0.04], true, BG_PANEL, FG_TEXT);
+    assessmentText = mkMultilineEdit(tab6, [0.53 0.34 0.45 0.22], BG_CTRL, FG_TEXT);
+    mkLabel(tab6, 'Riwayat Metode', [0.02 0.27 0.96 0.04], true, BG_PANEL, FG_TEXT);
+    historyText = mkTextBox(tab6, [0.02 0.05 0.96 0.21], BG_CTRL, FG_TEXT);
+
     function loadImageCallback(~, ~)
         [f, p] = uigetfile({'*.jpg;*.jpeg;*.png;*.bmp;*.tif;*.tiff', 'Image Files'});
         if isequal(f, 0), return; end
         raw = imread(fullfile(p, f));
-        inputImg = double(raw);
-        isColor = (ndims(inputImg) == 3) && (size(inputImg, 3) >= 3);
-        if isColor, inputImg = inputImg(:, :, 1:3); end
+        originalImg = double(raw);
+        isColor = (ndims(originalImg) == 3) && (size(originalImg, 3) >= 3);
+        if isColor, originalImg = originalImg(:, :, 1:3); end
+        activeImg = originalImg;
+        lastResult = [];
+        refImg = [];
+        sourceFile = f;
+        lastMethod = '';
+        lastParameters = '';
+        methodHistory = struct('method', {}, 'parameters', {});
 
         set(fileNameText, 'String', f);
         for k = 1:numel(activeLabels)
@@ -164,16 +204,17 @@ function imageEnhancementGUI()
         end
 
         axes(axInput);
-        imshow(uint8(inputImg));
+        imshow(uint8(originalImg));
         set(axInput, 'Color', BG_AXES, 'XColor', GRID_COL, 'YColor', GRID_COL);
-        drawHistogramPanel(inHistPanel, inputImg, isColor, BG_AXES, GRID_COL);
-        set(inFeatText, 'String', featureString(inputImg, isColor));
+        drawHistogramPanel(inHistPanel, originalImg, isColor, BG_AXES, GRID_COL);
+        set(inFeatText, 'String', featureString(originalImg, isColor));
 
+        refreshHistory();
         setLog('Citra dimuat mas.');
     end
 
     function loadRefCallback(~, ~)
-        if isempty(inputImg)
+        if isempty(activeImg)
             warndlg('Muat citra masukan dulu.'); return;
         end
         [f, p] = uigetfile({'*.jpg;*.jpeg;*.png;*.bmp;*.tif;*.tiff', 'Image Files'});
@@ -194,28 +235,37 @@ function imageEnhancementGUI()
 
     function applyIntensity(~, ~)
         if ~checkInputLoaded(), return; end
-        subtypeList = get(ddSubtype, 'String');
-        subtype = subtypeList{get(ddSubtype, 'Value')};
-        c = str2double(get(edC, 'String'));
-        gammaVal = str2double(get(edGamma, 'String'));
-        stretchVals = str2num(get(edStretch, 'String')); %#ok<ST2NM>
+        try
+            subtypeList = get(ddSubtype, 'String');
+            subtype = subtypeList{get(ddSubtype, 'Value')};
+            c = str2double(get(edC, 'String'));
+            gammaVal = str2double(get(edGamma, 'String'));
+            stretchVals = str2num(get(edStretch, 'String')); %#ok<ST2NM>
 
-        result = applyPerChannel(inputImg, isColor, ...
-            @(ch) intensityTransform(ch, subtype, c, gammaVal, stretchVals));
-        showResult(axOut2, histPanel2, featText2, result, ...
-            sprintf('Intensity Transformation - %s', subtype));
+            result = applyPerChannel(activeImg, isColor, ...
+                @(ch) intensityTransform(ch, subtype, c, gammaVal, stretchVals));
+            showResult(axOut2, histPanel2, featText2, result, ...
+                sprintf('Intensity Transformation - %s', subtype), intensityParameters(subtype, c, gammaVal, stretchVals));
+        catch ME
+            errordlg(ME.message, 'Parameter tidak valid');
+        end
     end
 
     function applyEqualization(~, ~)
         if ~checkInputLoaded(), return; end
-        modeList = get(ddModeEq, 'String');
-        mode = modeList{get(ddModeEq, 'Value')};
-        if isColor && contains(mode, 'kanal V')
-            result = equalizeViaVChannel(inputImg);
-        else
-            result = applyPerChannel(inputImg, isColor, @histeq_);
+        try
+            modeList = get(ddModeEq, 'String');
+            mode = modeList{get(ddModeEq, 'Value')};
+            if isColor && contains(mode, 'kanal V')
+                result = equalizeViaVChannel(activeImg);
+            else
+                result = applyPerChannel(activeImg, isColor, @histeq_);
+            end
+            showResult(axOut3, histPanel3, featText3, result, sprintf('Histogram Equalization - %s', mode), ...
+                sprintf('Mode: %s', mode));
+        catch ME
+            errordlg(ME.message, 'Enhancement gagal');
         end
-        showResult(axOut3, histPanel3, featText3, result, sprintf('Histogram Equalization - %s', mode));
     end
 
     function applySpecification(~, ~)
@@ -223,52 +273,167 @@ function imageEnhancementGUI()
         if isempty(refImg)
             warndlg('Muat citra referensi dulu.'); return;
         end
-        modeList = get(ddModeSpec, 'String');
-        mode = modeList{get(ddModeSpec, 'Value')};
-        if isColor && contains(mode, 'kanal V')
-            result = specifyViaVChannel(inputImg, refImg);
-        else
-            result = applyPerChannelWithRef(inputImg, refImg, isColor, @imhistmatch_);
+        try
+            modeList = get(ddModeSpec, 'String');
+            mode = modeList{get(ddModeSpec, 'Value')};
+            if isColor && contains(mode, 'kanal V')
+                result = specifyViaVChannel(activeImg, refImg);
+            else
+                result = applyPerChannelWithRef(activeImg, refImg, isColor, @imhistmatch_);
+            end
+            showResult(axOut4, histPanel4, featText4, result, sprintf('Histogram Specification - %s', mode), ...
+                sprintf('Mode: %s; Referensi: %s', mode, get(lblRefFile, 'String')));
+        catch ME
+            errordlg(ME.message, 'Enhancement gagal');
         end
-        showResult(axOut4, histPanel4, featText4, result, sprintf('Histogram Specification - %s', mode));
     end
 
     function applyFiltering(~, ~)
         if ~checkInputLoaded(), return; end
-        if get(ddCategory, 'Value') == 1
-            kernelList = get(ddKernel, 'String');
-            kernelName = kernelList{get(ddKernel, 'Value')};
-            ksize = round(str2double(get(edKsize, 'String')));
-            sigma = str2double(get(edSigma, 'String'));
-            if mod(ksize, 2) == 0, ksize = ksize + 1; end
-            kernel = buildKernel(kernelName, ksize, sigma);
-            result = applyPerChannel(inputImg, isColor, @(ch) conv2(ch, kernel, 'same'));
-            methodStr = sprintf('Filter Linear - %s', kernelName);
-        else
-            wsize = round(str2double(get(edWsize, 'String')));
-            if mod(wsize, 2) == 0, wsize = wsize + 1; end
-            result = applyPerChannel(inputImg, isColor, @(ch) medianFilter2D(ch, wsize));
-            methodStr = 'Filter Median';
+        try
+            if get(ddCategory, 'Value') == 1
+                kernelList = get(ddKernel, 'String');
+                kernelName = kernelList{get(ddKernel, 'Value')};
+                ksize = round(str2double(get(edKsize, 'String')));
+                sigma = str2double(get(edSigma, 'String'));
+                if mod(ksize, 2) == 0, ksize = ksize + 1; end
+                kernel = buildKernel(kernelName, ksize, sigma);
+                result = applyPerChannel(activeImg, isColor, @(ch) conv2(ch, kernel, 'same'));
+                methodStr = sprintf('Filter Linear - %s', kernelName);
+                parameterStr = filterParameters(kernelName, ksize, sigma);
+            else
+                wsize = round(str2double(get(edWsize, 'String')));
+                if mod(wsize, 2) == 0, wsize = wsize + 1; end
+                result = applyPerChannel(activeImg, isColor, @(ch) medianFilter2D(ch, wsize));
+                methodStr = 'Filter Median';
+                parameterStr = sprintf('Ukuran window: %d', wsize);
+            end
+            showResult(axOut5, histPanel5, featText5, result, methodStr, parameterStr);
+        catch ME
+            errordlg(ME.message, 'Parameter tidak valid');
         end
-        showResult(axOut5, histPanel5, featText5, result, methodStr);
+    end
+
+    function useLastResultCallback(~, ~)
+        if isempty(lastResult)
+            warndlg('Jalankan enhancement terlebih dahulu.'); return;
+        end
+        activeImg = lastResult;
+        methodHistory(end+1) = struct('method', lastMethod, 'parameters', lastParameters);
+        for k = 1:numel(activeLabels)
+            set(activeLabels{k}, 'String', sprintf('Citra aktif: %s (%d tahap)', sourceFile, numel(methodHistory)));
+        end
+        refreshHistory();
+        setLog(sprintf('Hasil digunakan sebagai citra aktif: %s', lastMethod));
+    end
+
+    function saveResultCallback(~, ~)
+        if isempty(activeImg)
+            warndlg('Muat citra masukan dulu.'); return;
+        end
+        imgToSave = activeImg;
+        if ~isempty(lastResult), imgToSave = lastResult; end
+        [baseName, ~, ~] = fileparts(sourceFile);
+        defaultName = [baseName '_enhanced.png'];
+        [f, p] = uiputfile({'*.png', 'PNG Image (*.png)'; '*.jpg', 'JPEG Image (*.jpg)'; '*.tif', 'TIFF Image (*.tif)'}, ...
+            'Simpan Citra Hasil', defaultName);
+        if isequal(f, 0), return; end
+        imwrite(uint8(imgToSave), fullfile(p, f));
+        setLog(sprintf('Citra hasil disimpan: %s', f));
+    end
+
+    function exportCaseCallback(~, ~)
+        if isempty(originalImg)
+            warndlg('Muat citra masukan dulu.'); return;
+        end
+        [baseName, ~, ~] = fileparts(sourceFile);
+        [f, p] = uiputfile({'*.mat', 'MATLAB Case Record (*.mat)'}, ...
+            'Ekspor Catatan Kasus', [baseName '_case.mat']);
+        if isequal(f, 0), return; end
+
+        finalImg = activeImg;
+        if ~isempty(lastResult), finalImg = lastResult; end
+        caseRecord = struct();
+        caseRecord.sourceFile = sourceFile;
+        caseRecord.createdAt = datestr(now, 30);
+        caseRecord.originalImage = originalImg;
+        caseRecord.originalHistogram = image_histogram(originalImg);
+        caseRecord.originalFeatures = featureString(originalImg, isColor);
+        caseRecord.activeImage = activeImg;
+        caseRecord.finalImage = finalImg;
+        caseRecord.finalHistogram = image_histogram(finalImg);
+        caseRecord.finalFeatures = featureString(finalImg, isColor);
+        caseRecord.lastMethod = lastMethod;
+        caseRecord.lastParameters = lastParameters;
+        caseRecord.methodHistory = methodHistory;
+        caseRecord.analysis = struct( ...
+            'visualProblem', get(problemText, 'String'), ...
+            'improvementObjective', get(objectiveText, 'String'), ...
+            'methodRationale', get(rationaleText, 'String'), ...
+            'resultAssessment', get(assessmentText, 'String'));
+        save(fullfile(p, f), 'caseRecord');
+        setLog(sprintf('Catatan kasus diekspor: %s', f));
     end
 
     function ok = checkInputLoaded()
-        ok = ~isempty(inputImg);
+        ok = ~isempty(activeImg);
         if ~ok, warndlg('Muat citra masukan dulu mas.'); end
     end
 
-    function showResult(axHandle, histPanelHandle, featTextHandle, result, methodStr)
+    function showResult(axHandle, histPanelHandle, featTextHandle, result, methodStr, parameterStr)
         try
             result = max(0, min(255, result));
+            lastResult = result;
+            lastMethod = methodStr;
+            lastParameters = parameterStr;
             axes(axHandle);
             imshow(uint8(result));
             set(axHandle, 'Color', BG_AXES, 'XColor', GRID_COL, 'YColor', GRID_COL);
             drawHistogramPanel(histPanelHandle, result, isColor, BG_AXES, GRID_COL);
-            set(featTextHandle, 'String', featureString(result, isColor));
+            set(featTextHandle, 'String', [{'Metode: ' methodStr}, {'Parameter: ' parameterStr}, {''}, featureString(result, isColor)]);
+            refreshHistory();
             setLog(sprintf('Selesai: %s', methodStr));
         catch ME
             errordlg(sprintf('Error: %s', ME.message));
+        end
+    end
+
+    function refreshHistory()
+        entries = {};
+        if ~isempty(sourceFile)
+            entries{end+1} = sprintf('Sumber: %s', sourceFile);
+        end
+        for index = 1:numel(methodHistory)
+            entries{end+1} = sprintf('%d. %s | %s', index, methodHistory(index).method, methodHistory(index).parameters);
+        end
+        if ~isempty(lastResult)
+            entries{end+1} = sprintf('Pratinjau: %s | %s', lastMethod, lastParameters);
+        end
+        if isempty(entries), entries = {'Belum ada citra dimuat.'}; end
+        set(historyText, 'String', entries);
+    end
+
+    function parameters = intensityParameters(subtype, c, gammaVal, stretchVals)
+        switch subtype
+            case 'Log Transform'
+                parameters = sprintf('c: %.4g', c);
+            case 'Power-Law (Gamma)'
+                parameters = sprintf('c: %.4g; gamma: %.4g', c, gammaVal);
+            case 'Contrast Stretching'
+                parameters = sprintf('r1,s1,r2,s2: %s', mat2str(stretchVals));
+            otherwise
+                parameters = 'Tidak ada parameter tambahan';
+        end
+    end
+
+    function parameters = filterParameters(kernelName, kernelSize, sigma)
+        switch kernelName
+            case 'Gaussian'
+                parameters = sprintf('Kernel: %dx%d; sigma: %.4g', kernelSize, kernelSize, sigma);
+            case 'Average'
+                parameters = sprintf('Kernel: %dx%d', kernelSize, kernelSize);
+            otherwise
+                parameters = 'Kernel tetap: 3x3';
         end
     end
 
