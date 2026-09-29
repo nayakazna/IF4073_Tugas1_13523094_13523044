@@ -84,13 +84,14 @@ function imageEnhancementGUI()
     p2 = mkPanel(tab2, [0.02 0.64 0.96 0.24], BG_PANEL, FG_TEXT, 'Parameter Intensity Transformation');
     mkLabel(p2, 'Jenis:', [0.01 0.55 0.08 0.35], false, BG_PANEL, FG_TEXT);
     ddSubtype = mkPopup(p2, {'Negative', 'Log Transform', 'Power-Law (Gamma)', 'Contrast Stretching'}, ...
-        [0.09 0.55 0.24 0.35], BG_CTRL, FG_TEXT);
-    mkLabel(p2, 'c:', [0.35 0.55 0.05 0.35], false, BG_PANEL, FG_TEXT);
+        [0.09 0.55 0.24 0.35], BG_CTRL, FG_TEXT, @toggleIntensityInputs);
+    lblC = mkLabel(p2, 'c:', [0.35 0.55 0.05 0.35], false, BG_PANEL, FG_TEXT);
     edC = mkEdit(p2, '1', [0.40 0.55 0.06 0.35], BG_CTRL, FG_TEXT);
-    mkLabel(p2, 'gamma:', [0.48 0.55 0.07 0.35], false, BG_PANEL, FG_TEXT);
+    lblGamma = mkLabel(p2, 'gamma:', [0.48 0.55 0.07 0.35], false, BG_PANEL, FG_TEXT);
     edGamma = mkEdit(p2, '1.0', [0.55 0.55 0.06 0.35], BG_CTRL, FG_TEXT);
-    mkLabel(p2, 'stretch r1,s1,r2,s2:', [0.01 0.10 0.16 0.35], false, BG_PANEL, FG_TEXT);
+    lblStretch = mkLabel(p2, 'stretch r1,s1,r2,s2:', [0.01 0.10 0.16 0.35], false, BG_PANEL, FG_TEXT);
     edStretch = mkEdit(p2, '70,0,180,255', [0.17 0.10 0.20 0.35], BG_CTRL, FG_TEXT);
+    toggleIntensityInputs([], []);
 
     mkButton(tab2, 'Apply Enhancement', [0.02 0.58 0.20 0.05], BG_CTRL, FG_TEXT, @applyIntensity);
 
@@ -151,11 +152,12 @@ function imageEnhancementGUI()
     subLinear = mkPanel(p5, [0.34 0.05 0.64 0.90], BG_PANEL, FG_TEXT);
     mkLabel(subLinear, 'Kernel:', [0.01 0.55 0.10 0.35], false, BG_PANEL, FG_TEXT);
     ddKernel = mkPopup(subLinear, {'Average', 'Gaussian', 'Sharpen', 'Sobel-X', 'Sobel-Y'}, ...
-        [0.11 0.55 0.28 0.35], BG_CTRL, FG_TEXT);
-    mkLabel(subLinear, 'Ukuran:', [0.41 0.55 0.10 0.35], false, BG_PANEL, FG_TEXT);
+        [0.11 0.55 0.28 0.35], BG_CTRL, FG_TEXT, @toggleKernelInputs);
+    lblKsize = mkLabel(subLinear, 'Ukuran:', [0.41 0.55 0.10 0.35], false, BG_PANEL, FG_TEXT);
     edKsize = mkEdit(subLinear, '3', [0.51 0.55 0.06 0.35], BG_CTRL, FG_TEXT);
-    mkLabel(subLinear, 'sigma:', [0.01 0.10 0.08 0.35], false, BG_PANEL, FG_TEXT);
+    lblSigma = mkLabel(subLinear, 'sigma:', [0.01 0.10 0.08 0.35], false, BG_PANEL, FG_TEXT);
     edSigma = mkEdit(subLinear, '1.0', [0.09 0.10 0.06 0.35], BG_CTRL, FG_TEXT);
+    toggleKernelInputs([], []);
 
     subMedian = mkPanel(p5, [0.34 0.05 0.64 0.90], BG_PANEL, FG_TEXT);
     mkLabel(subMedian, 'Ukuran window:', [0.01 0.55 0.18 0.35], false, BG_PANEL, FG_TEXT);
@@ -233,6 +235,39 @@ function imageEnhancementGUI()
         end
     end
 
+    function toggleIntensityInputs(~, ~)
+        subtypeList = get(ddSubtype, 'String');
+        subtype = subtypeList{get(ddSubtype, 'Value')};
+        set(lblC, 'Visible', 'off'); set(edC, 'Visible', 'off');
+        set(lblGamma, 'Visible', 'off'); set(edGamma, 'Visible', 'off');
+        set(lblStretch, 'Visible', 'off'); set(edStretch, 'Visible', 'off');
+
+        switch subtype
+            case 'Log Transform'
+                set(lblC, 'Visible', 'on'); set(edC, 'Visible', 'on');
+            case 'Power-Law (Gamma)'
+                set(lblC, 'Visible', 'on'); set(edC, 'Visible', 'on');
+                set(lblGamma, 'Visible', 'on'); set(edGamma, 'Visible', 'on');
+            case 'Contrast Stretching'
+                set(lblStretch, 'Visible', 'on'); set(edStretch, 'Visible', 'on');
+        end
+    end
+
+    function toggleKernelInputs(~, ~)
+        kernelList = get(ddKernel, 'String');
+        kernelName = kernelList{get(ddKernel, 'Value')};
+        set(lblKsize, 'Visible', 'off'); set(edKsize, 'Visible', 'off');
+        set(lblSigma, 'Visible', 'off'); set(edSigma, 'Visible', 'off');
+
+        switch kernelName
+            case 'Average'
+                set(lblKsize, 'Visible', 'on'); set(edKsize, 'Visible', 'on');
+            case 'Gaussian'
+                set(lblKsize, 'Visible', 'on'); set(edKsize, 'Visible', 'on');
+                set(lblSigma, 'Visible', 'on'); set(edSigma, 'Visible', 'on');
+        end
+    end
+
     function applyIntensity(~, ~)
         if ~checkInputLoaded(), return; end
         try
@@ -240,7 +275,10 @@ function imageEnhancementGUI()
             subtype = subtypeList{get(ddSubtype, 'Value')};
             c = str2double(get(edC, 'String'));
             gammaVal = str2double(get(edGamma, 'String'));
-            stretchVals = str2num(get(edStretch, 'String')); %#ok<ST2NM>
+            stretchVals = [];
+            if strcmp(subtype, 'Contrast Stretching')
+                stretchVals = str2num(get(edStretch, 'String')); %#ok<ST2NM>
+            end
 
             result = applyPerChannel(activeImg, isColor, ...
                 @(ch) intensityTransform(ch, subtype, c, gammaVal, stretchVals));
@@ -294,9 +332,15 @@ function imageEnhancementGUI()
             if get(ddCategory, 'Value') == 1
                 kernelList = get(ddKernel, 'String');
                 kernelName = kernelList{get(ddKernel, 'Value')};
-                ksize = round(str2double(get(edKsize, 'String')));
-                sigma = str2double(get(edSigma, 'String'));
-                if mod(ksize, 2) == 0, ksize = ksize + 1; end
+                ksize = 3;
+                sigma = 1;
+                if strcmp(kernelName, 'Average') || strcmp(kernelName, 'Gaussian')
+                    ksize = round(str2double(get(edKsize, 'String')));
+                    if mod(ksize, 2) == 0, ksize = ksize + 1; end
+                end
+                if strcmp(kernelName, 'Gaussian')
+                    sigma = str2double(get(edSigma, 'String'));
+                end
                 kernel = buildKernel(kernelName, ksize, sigma);
                 result = applyPerChannel(activeImg, isColor, @(ch) conv2(ch, kernel, 'same'));
                 methodStr = sprintf('Filter Linear - %s', kernelName);
