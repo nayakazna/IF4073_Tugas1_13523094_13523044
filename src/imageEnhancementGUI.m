@@ -213,7 +213,7 @@ function imageEnhancementGUI()
         if isColor && contains(mode, 'kanal V')
             result = equalizeViaVChannel(inputImg);
         else
-            result = applyPerChannel(inputImg, isColor, @histEqualizeChannel);
+            result = applyPerChannel(inputImg, isColor, @histeq_);
         end
         showResult(axOut3, histPanel3, featText3, result, sprintf('Histogram Equalization - %s', mode));
     end
@@ -228,7 +228,7 @@ function imageEnhancementGUI()
         if isColor && contains(mode, 'kanal V')
             result = specifyViaVChannel(inputImg, refImg);
         else
-            result = applyPerChannelWithRef(inputImg, refImg, isColor, @histSpecifyChannel);
+            result = applyPerChannelWithRef(inputImg, refImg, isColor, @imhistmatch_);
         end
         showResult(axOut4, histPanel4, featText4, result, sprintf('Histogram Specification - %s', mode));
     end
@@ -242,12 +242,12 @@ function imageEnhancementGUI()
             sigma = str2double(get(edSigma, 'String'));
             if mod(ksize, 2) == 0, ksize = ksize + 1; end
             kernel = buildKernel(kernelName, ksize, sigma);
-            result = applyPerChannel(inputImg, isColor, @(ch) myConv2D(ch, kernel));
+            result = applyPerChannel(inputImg, isColor, @(ch) conv2(ch, kernel, 'same'));
             methodStr = sprintf('Filter Linear - %s', kernelName);
         else
             wsize = round(str2double(get(edWsize, 'String')));
             if mod(wsize, 2) == 0, wsize = wsize + 1; end
-            result = applyPerChannel(inputImg, isColor, @(ch) myMedianFilter(ch, wsize));
+            result = applyPerChannel(inputImg, isColor, @(ch) medianFilter2D(ch, wsize));
             methodStr = 'Filter Median';
         end
         showResult(axOut5, histPanel5, featText5, result, methodStr);
@@ -273,7 +273,7 @@ function imageEnhancementGUI()
     end
 
     function setLog(msg)
-        set(logText, 'String', {msg, 'inget, fungsi intinya masih kosongan, isi dulu ya'});
+        set(logText, 'String', {msg});
     end
 
     function s = featureString(img, colorFlag)
@@ -282,7 +282,7 @@ function imageEnhancementGUI()
         else
             gray = img;
         end
-        counts = myHistogram(gray);
+        counts = imhist_(gray);
         total = sum(counts);
         s = { ...
             sprintf('Ukuran  : %d x %d', size(gray, 1), size(gray, 2)), ...
@@ -308,7 +308,7 @@ function imageEnhancementGUI()
                 ax = axes(panelHandle, 'Units', 'normalized', ...
                     'Position', [0.10, 1 - k * 0.32, 0.86, 0.27], ...
                     'Color', bgAxesCol, 'XColor', gridCol, 'YColor', gridCol);
-                counts = myHistogram(img(:, :, k));
+                counts = imhist_(img(:, :, k));
                 bar(ax, 0:255, counts, 'FaceColor', colors{k}, 'EdgeColor', 'none', 'BarWidth', 1);
                 xlim(ax, [0 255]);
                 ylabel(ax, labels{k}, 'Color', gridCol);
@@ -317,7 +317,7 @@ function imageEnhancementGUI()
         else
             ax = axes(panelHandle, 'Units', 'normalized', 'Position', [0.10 0.12 0.86 0.80], ...
                 'Color', bgAxesCol, 'XColor', gridCol, 'YColor', gridCol);
-            counts = myHistogram(img);
+            counts = imhist_(img);
             bar(ax, 0:255, counts, 'FaceColor', [0.75 0.75 0.78], 'EdgeColor', 'none', 'BarWidth', 1);
             xlim(ax, [0 255]);
         end

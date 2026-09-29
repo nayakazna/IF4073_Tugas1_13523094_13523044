@@ -7,7 +7,7 @@ function result = applyPerChannelWithRef(img, refImg, isColorFlag, fcnHandle)
         end
     else
         refCh = refImg;
-        if ndims(refCh) == 3, refCh = rgb2grayManual(refCh); end
+        if ndims(refCh) == 3, refCh = rgb2gray(refCh); end
         result = fcnHandle(img, refCh);
     end
 end

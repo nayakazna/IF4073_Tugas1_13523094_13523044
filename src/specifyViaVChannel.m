@@ -7,7 +7,7 @@ function out = specifyViaVChannel(imgRGB, refRGB)
     else
         Vref = refRGB;
     end
-    Vout = histSpecifyChannel(Vin, Vref);
+    Vout = imhistmatch_(Vin, Vref);
     hsvIn(:, :, 3) = Vout / 255;
     out = hsv2rgb(hsvIn) * 255;
 end

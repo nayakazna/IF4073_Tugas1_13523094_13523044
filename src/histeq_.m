@@ -1,20 +1,30 @@
 function res = histeq_(img)
-%UNTITLED6 Summary of this function goes here
-%   Detailed explanation goes here
     h = image_histogram(img);
-    N = size(img, 1) * size(img, 2);
-    res = zeros(size(img), 'uint8');
+    res = zeros(size(img));
+    channelCount = size(h, 2);
+    pixelCount = size(img, 1) * size(img, 2);
 
-    for k = 1:3
-        cdf = cumsum(h(:, k));
-        cdf_min = cdf(find(cdf > 0, 1));
-
-        if cdf_min == N
-            res(:,:,k) = img(:,:,k);
-            continue;
+    for channel = 1:channelCount
+        if channelCount == 1
+            values = round(min(255, max(0, double(img))));
+        else
+            values = round(min(255, max(0, double(img(:, :, channel)))));
         end
-        lut = round((cdf - cdf_min) / (N - cdf_min) * 255);
-        lut = uint8(max(min(lut, 255), 0));
-        res(:,:,k) = lut(double(img(:,:,k)) + 1);
+
+        cdf = cumsum(h(:, channel));
+        cdfMin = cdf(find(cdf > 0, 1));
+        if isempty(cdfMin) || cdfMin == pixelCount
+            equalized = values;
+        else
+            lut = round((cdf - cdfMin) / (pixelCount - cdfMin) * 255);
+            lut = min(255, max(0, lut));
+            equalized = lut(values + 1);
+        end
+
+        if channelCount == 1
+            res = equalized;
+        else
+            res(:, :, channel) = equalized;
+        end
     end
 end

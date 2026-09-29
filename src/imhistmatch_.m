@@ -1,23 +1,31 @@
 function res = imhistmatch_(img, ref)
-%UNTITLED7 Summary of this function goes here
-%   Detailed explanation goes here
-    h1 = image_histogram(img);
-    h2 = image_histogram(ref);
-    N1 = size(img, 1) * size(img, 2);
-    N2 = size(ref, 1) * size(ref, 2);
-    res = zeros(size(img), 'uint8');
+    sourceHistogram = image_histogram(img);
+    referenceHistogram = image_histogram(ref);
+    sourceChannels = size(sourceHistogram, 2);
+    referenceChannels = size(referenceHistogram, 2);
+    res = zeros(size(img));
+    sourcePixels = size(img, 1) * size(img, 2);
+    referencePixels = size(ref, 1) * size(ref, 2);
 
-    for k = 1:3
-        c1 = cumsum(h1(:, k)) / N1;
-        c2 = cumsum(h2(:, k)) / N2;
+    for channel = 1:sourceChannels
+        referenceChannel = min(channel, referenceChannels);
+        sourceCdf = cumsum(sourceHistogram(:, channel)) / sourcePixels;
+        referenceCdf = cumsum(referenceHistogram(:, referenceChannel)) / referencePixels;
         lut = zeros(256, 1);
-        for v = 1:256
-            idx = find(c2 >= c1(v) - 1e-12, 1);
-            if isempty(idx)
-                idx = 256;
+        for value = 1:256
+            match = find(referenceCdf >= sourceCdf(value) - 1e-12, 1);
+            if isempty(match)
+                match = 256;
             end
-            lut(v) = idx - 1;
+            lut(value) = match - 1;
         end
-        res(:,:,k) = uint8(lut(double(img(:,:,k)) + 1));
+
+        if sourceChannels == 1
+            values = round(min(255, max(0, double(img))));
+            res = lut(values + 1);
+        else
+            values = round(min(255, max(0, double(img(:, :, channel)))));
+            res(:, :, channel) = lut(values + 1);
+        end
     end
 end
