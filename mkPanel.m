@@ -1,0 +1,6 @@
+function h = mkPanel(parent, pos, bg, fg, titleStr)
+    if nargin < 5, titleStr = ''; end
+    h = uipanel(parent, 'Units', 'normalized', 'Position', pos, ...
+        'BackgroundColor', bg, 'ForegroundColor', fg, 'HighlightColor', fg, ...
+        'Title', titleStr);
+end

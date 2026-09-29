@@ -1,0 +1,6 @@
+function h = mkPopup(parent, items, pos, bg, fg, callback)
+    if nargin < 6, callback = ''; end
+    h = uicontrol(parent, 'Style', 'popupmenu', 'String', items, ...
+        'Units', 'normalized', 'Position', pos, ...
+        'BackgroundColor', bg, 'ForegroundColor', fg, 'Callback', callback);
+end

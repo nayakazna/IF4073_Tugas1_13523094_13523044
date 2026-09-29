@@ -1,0 +1,6 @@
+function h = mkLabel(parent, str, pos, bold, bg, fg)
+    fw = 'normal'; if bold, fw = 'bold'; end
+    h = uicontrol(parent, 'Style', 'text', 'String', str, ...
+        'Units', 'normalized', 'Position', pos, 'HorizontalAlignment', 'left', ...
+        'FontWeight', fw, 'BackgroundColor', bg, 'ForegroundColor', fg);
+end
