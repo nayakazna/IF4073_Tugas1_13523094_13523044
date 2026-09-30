@@ -564,7 +564,7 @@ function imageEnhancementGUI()
         else
             gray = img;
         end
-        counts = imhist_(gray);
+        counts = image_histogram(gray);
         total = sum(counts);
         s = { ...
             sprintf('Ukuran  : %d x %d', size(gray, 1), size(gray, 2)), ...
@@ -590,7 +590,7 @@ function imageEnhancementGUI()
                 ax = axes(panelHandle, 'Units', 'normalized', ...
                     'Position', [0.10, 1 - k * 0.32, 0.86, 0.27], ...
                     'Color', bgAxesCol, 'XColor', gridCol, 'YColor', gridCol);
-                counts = imhist_(img(:, :, k));
+                counts = image_histogram(img(:, :, k));
                 bar(ax, 0:255, counts, 'FaceColor', colors{k}, 'EdgeColor', 'none', 'BarWidth', 1);
                 xlim(ax, [0 255]);
                 ylabel(ax, labels{k}, 'Color', gridCol);
@@ -599,7 +599,7 @@ function imageEnhancementGUI()
         else
             ax = axes(panelHandle, 'Units', 'normalized', 'Position', [0.10 0.12 0.86 0.80], ...
                 'Color', bgAxesCol, 'XColor', gridCol, 'YColor', gridCol);
-            counts = imhist_(img);
+            counts = image_histogram(img);
             bar(ax, 0:255, counts, 'FaceColor', [0.75 0.75 0.78], 'EdgeColor', 'none', 'BarWidth', 1);
             xlim(ax, [0 255]);
         end
