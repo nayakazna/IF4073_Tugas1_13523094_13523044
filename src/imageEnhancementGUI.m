@@ -19,6 +19,7 @@ function imageEnhancementGUI()
     lastMethod = '';
     lastParameters = '';
     methodHistory = struct('method', {}, 'parameters', {});
+    activeImageHistory = {};
 
     fig = figure('Name', 'IF4073 - Image Enhancement GUI', ...
         'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none', ...
@@ -44,6 +45,11 @@ function imageEnhancementGUI()
         'Units', 'normalized', 'Position', [0.79 0.945 0.12 0.045], ...
         'BackgroundColor', BG_CTRL, 'ForegroundColor', FG_TEXT, ...
         'Callback', @exportCaseCallback);
+
+    uicontrol(fig, 'Style', 'pushbutton', 'String', 'Undo', ...
+        'Units', 'normalized', 'Position', [0.92 0.945 0.07 0.045], ...
+        'BackgroundColor', BG_CTRL, 'ForegroundColor', FG_TEXT, ...
+        'Callback', @undoCallback);
 
     fileNameText = uicontrol(fig, 'Style', 'text', 'String', 'Belum ada citra dimuat', ...
         'Units', 'normalized', 'Position', [0.12 0.945 0.40 0.04], ...
@@ -77,6 +83,7 @@ function imageEnhancementGUI()
     axInput     = mkAxes(tab1, [colX(1) 0.06 colW 0.85], BG_AXES, GRID_COL);
     inHistPanel = mkPanel(tab1, [colX(2) 0.06 colW 0.85], BG_PANEL, FG_TEXT);
     inFeatText  = mkTextBox(tab1, [colX(3) 0.06 colW 0.85], BG_CTRL, FG_TEXT);
+    mkButton(tab1, 'Save Histogram', [colX(2) 0.01 colW 0.04], BG_CTRL, FG_TEXT, @saveInputHistogramCallback);
 
     lblActive2 = mkLabel(tab2, 'Citra aktif: -', [0.02 0.905 0.60 0.045], false, BG_PANEL, FG_TEXT);
     activeLabels{end+1} = lblActive2;
@@ -189,9 +196,18 @@ function imageEnhancementGUI()
         [f, p] = uigetfile({'*.jpg;*.jpeg;*.png;*.bmp;*.tif;*.tiff', 'Image Files'});
         if isequal(f, 0), return; end
         raw = imread(fullfile(p, f));
-        originalImg = double(raw);
-        isColor = (ndims(originalImg) == 3) && (size(originalImg, 3) >= 3);
-        if isColor, originalImg = originalImg(:, :, 1:3); end
+        if ndims(raw) == 3 && size(raw, 3) >= 3
+            rawRgb = raw(:, :, 1:3);
+            isColor = ~isGrayscaleRgb(rawRgb);
+            if isColor
+                originalImg = double(rawRgb);
+            else
+                originalImg = double(rawRgb(:, :, 1));
+            end
+        else
+            originalImg = double(raw);
+            isColor = false;
+        end
         activeImg = originalImg;
         lastResult = [];
         refImg = [];
@@ -199,11 +215,10 @@ function imageEnhancementGUI()
         lastMethod = '';
         lastParameters = '';
         methodHistory = struct('method', {}, 'parameters', {});
+        activeImageHistory = {originalImg};
 
         set(fileNameText, 'String', f);
-        for k = 1:numel(activeLabels)
-            set(activeLabels{k}, 'String', sprintf('Citra aktif: %s', f));
-        end
+        refreshActiveLabels();
 
         axes(axInput);
         imshow(uint8(originalImg));
@@ -225,6 +240,18 @@ function imageEnhancementGUI()
         refImg = double(raw);
         if ndims(refImg) == 3, refImg = refImg(:, :, 1:3); end
         set(lblRefFile, 'String', sprintf('Referensi: %s', f));
+    end
+
+    function saveInputHistogramCallback(~, ~)
+        if isempty(originalImg)
+            warndlg('Muat citra masukan dulu.'); return;
+        end
+        [baseName, ~, ~] = fileparts(sourceFile);
+        [f, p] = uiputfile({'*.png', 'PNG Image (*.png)'}, ...
+            'Simpan Histogram Citra Masukan', [baseName '_histogram.png']);
+        if isequal(f, 0), return; end
+        saveHistogramImage(originalImg, isColor, fullfile(p, f));
+        setLog(sprintf('Histogram citra masukan disimpan: %s', f));
     end
 
     function toggleFilterCategory(~, ~)
@@ -363,12 +390,45 @@ function imageEnhancementGUI()
             warndlg('Jalankan enhancement terlebih dahulu.'); return;
         end
         activeImg = lastResult;
+        activeImageHistory{end+1} = activeImg;
         methodHistory(end+1) = struct('method', lastMethod, 'parameters', lastParameters);
-        for k = 1:numel(activeLabels)
-            set(activeLabels{k}, 'String', sprintf('Citra aktif: %s (%d tahap)', sourceFile, numel(methodHistory)));
-        end
+        lastResult = [];
+        refreshActiveLabels();
         refreshHistory();
         setLog(sprintf('Hasil digunakan sebagai citra aktif: %s', lastMethod));
+    end
+
+    function undoCallback(~, ~)
+        if ~isempty(lastResult)
+            lastResult = [];
+            if isempty(methodHistory)
+                lastMethod = '';
+                lastParameters = '';
+            else
+                lastMethod = methodHistory(end).method;
+                lastParameters = methodHistory(end).parameters;
+            end
+            refreshHistory();
+            setLog('Pratinjau enhancement dibatalkan.');
+            return;
+        end
+        if numel(activeImageHistory) <= 1
+            warndlg('Tidak ada tahap enhancement yang dapat di-undo.'); return;
+        end
+        activeImageHistory(end) = [];
+        activeImg = activeImageHistory{end};
+        methodHistory(end) = [];
+        lastResult = [];
+        if isempty(methodHistory)
+            lastMethod = '';
+            lastParameters = '';
+        else
+            lastMethod = methodHistory(end).method;
+            lastParameters = methodHistory(end).parameters;
+        end
+        refreshActiveLabels();
+        refreshHistory();
+        setLog('Tahap enhancement terakhir dibatalkan.');
     end
 
     function saveResultCallback(~, ~)
@@ -457,6 +517,19 @@ function imageEnhancementGUI()
         set(historyText, 'String', entries);
     end
 
+    function refreshActiveLabels()
+        for k = 1:numel(activeLabels)
+            if isempty(sourceFile)
+                label = 'Citra aktif: -';
+            elseif isempty(methodHistory)
+                label = sprintf('Citra aktif: %s', sourceFile);
+            else
+                label = sprintf('Citra aktif: %s (%d tahap)', sourceFile, numel(methodHistory));
+            end
+            set(activeLabels{k}, 'String', label);
+        end
+    end
+
     function parameters = intensityParameters(subtype, c, gammaVal, stretchVals)
         switch subtype
             case 'Log Transform'
@@ -530,6 +603,34 @@ function imageEnhancementGUI()
             bar(ax, 0:255, counts, 'FaceColor', [0.75 0.75 0.78], 'EdgeColor', 'none', 'BarWidth', 1);
             xlim(ax, [0 255]);
         end
+    end
+
+    function saveHistogramImage(img, colorFlag, filePath)
+        histogramFigure = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 900 700]);
+        cleanupFigure = onCleanup(@() close(histogramFigure));
+        if colorFlag
+            colors = {[0.85 0.10 0.10], [0.10 0.60 0.10], [0.10 0.30 0.85]};
+            labels = {'R', 'G', 'B'};
+            for k = 1:3
+                subplot(3, 1, k);
+                bar(0:255, imhist_(img(:, :, k)), 'FaceColor', colors{k}, 'EdgeColor', 'none', 'BarWidth', 1);
+                xlim([0 255]);
+                ylabel(labels{k});
+                if k == 3, xlabel('Intensitas'); end
+            end
+        else
+            bar(0:255, imhist_(img), 'FaceColor', [0.35 0.35 0.35], 'EdgeColor', 'none', 'BarWidth', 1);
+            xlim([0 255]);
+            xlabel('Intensitas');
+            ylabel('Frekuensi');
+            title('Histogram Grayscale');
+        end
+        print(histogramFigure, filePath, '-dpng', '-r300');
+        clear cleanupFigure;
+    end
+
+    function result = isGrayscaleRgb(rgb)
+        result = isequal(rgb(:, :, 1), rgb(:, :, 2)) && isequal(rgb(:, :, 2), rgb(:, :, 3));
     end
 
 end
