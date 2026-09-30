@@ -613,13 +613,13 @@ function imageEnhancementGUI()
             labels = {'R', 'G', 'B'};
             for k = 1:3
                 subplot(3, 1, k);
-                bar(0:255, imhist_(img(:, :, k)), 'FaceColor', colors{k}, 'EdgeColor', 'none', 'BarWidth', 1);
+                bar(0:255, image_histogram(img(:, :, k)), 'FaceColor', colors{k}, 'EdgeColor', 'none', 'BarWidth', 1);
                 xlim([0 255]);
                 ylabel(labels{k});
                 if k == 3, xlabel('Intensitas'); end
             end
         else
-            bar(0:255, imhist_(img), 'FaceColor', [0.35 0.35 0.35], 'EdgeColor', 'none', 'BarWidth', 1);
+            bar(0:255, image_histogram(img), 'FaceColor', [0.35 0.35 0.35], 'EdgeColor', 'none', 'BarWidth', 1);
             xlim([0 255]);
             xlabel('Intensitas');
             ylabel('Frekuensi');
